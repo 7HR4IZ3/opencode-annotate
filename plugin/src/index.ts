@@ -96,13 +96,23 @@ export const AnnotatePlugin: Plugin = async (ctx) => {
               message: `[annotate] Sending to session prompt...`,
             })
 
+            // Get current session ID
+            const sessions = await client.session.list()
+            const currentSession = sessions.data?.[0]
+            if (!currentSession) {
+              throw new Error("No active session found")
+            }
+
             await client.session.prompt({
-              messages: [
-                {
-                  role: "user",
-                  content: context.join("\n"),
-                },
-              ],
+              path: { id: currentSession.id },
+              body: {
+                parts: [
+                  {
+                    type: "text",
+                    text: context.join("\n"),
+                  },
+                ],
+              },
             })
 
             await client.app.log({
