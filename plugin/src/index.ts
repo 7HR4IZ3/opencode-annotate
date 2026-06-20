@@ -91,5 +91,6 @@ export const AnnotatePlugin: Plugin = async (ctx) => {
   return {
     ...createAnnotateCommand(server),
   }
-  // No cleanup needed - OpenCode manages plugin lifecycle
 }
+
+export default AnnotatePlugin
