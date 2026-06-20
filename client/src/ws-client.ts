@@ -1,4 +1,4 @@
-import type { ClientMessage, ServerMessage } from "@opencode-annotate/shared/types"
+import type { ClientMessage, ServerMessage } from "./types"
 
 export interface WSClientOptions {
   session: string
@@ -6,6 +6,8 @@ export interface WSClientOptions {
   onConnect?: () => void
   onDisconnect?: () => void
   onError?: (error: Event) => void
+  onAck?: (messageId: string) => void
+  onServerError?: (message: string) => void
 }
 
 export class WSClient {
@@ -22,25 +24,27 @@ export class WSClient {
     this.session = options.session
   }
 
+  get connected(): boolean {
+    return this.ws?.readyState === WebSocket.OPEN
+  }
+
   connect(): void {
     this.ws = new WebSocket(this.options.server)
 
     this.ws.onopen = () => {
-      console.log("[annotate] Connected to server")
       this.retryCount = 0
+      this.sendPing()
       this.options.onConnect?.()
       this.startPing()
     }
 
     this.ws.onclose = () => {
-      console.log("[annotate] Disconnected from server")
       this.stopPing()
       this.options.onDisconnect?.()
       this.attemptReconnect()
     }
 
     this.ws.onerror = (error) => {
-      console.error("[annotate] WebSocket error:", error)
       this.options.onError?.(error)
     }
 
@@ -53,28 +57,24 @@ export class WSClient {
   private handleMessage(message: ServerMessage): void {
     switch (message.type) {
       case "welcome":
-        console.log(`[annotate] Session: ${message.sessionCode}`)
         break
       case "ack":
-        console.log(`[annotate] Message sent: ${message.messageId}`)
+        this.options.onAck?.(message.messageId)
         break
       case "error":
-        console.error(`[annotate] Server error: ${message.message}`)
+        this.options.onServerError?.(message.message)
         break
       case "pong":
-        // Keepalive response
         break
     }
   }
 
   private attemptReconnect(): void {
     if (this.retryCount >= this.maxRetries) {
-      console.error("[annotate] Max retries reached, giving up")
       return
     }
 
     const delay = this.retryDelays[this.retryCount]
-    console.log(`[annotate] Reconnecting in ${delay}ms... (attempt ${this.retryCount + 1})`)
 
     setTimeout(() => {
       this.retryCount++
@@ -82,12 +82,12 @@ export class WSClient {
     }, delay)
   }
 
-  send(message: ClientMessage): void {
+  send(message: ClientMessage): boolean {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message))
-    } else {
-      console.error("[annotate] Not connected")
+      return true
     }
+    return false
   }
 
   disconnect(): void {
@@ -99,10 +99,14 @@ export class WSClient {
   private startPing(): void {
     this.stopPing()
     this.pingInterval = setInterval(() => {
-      if (this.ws?.readyState === WebSocket.OPEN) {
-        this.ws.send(JSON.stringify({ type: "ping" }))
-      }
-    }, 15000) // Ping every 15 seconds
+      this.sendPing()
+    }, 15000)
+  }
+
+  private sendPing(): void {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type: "ping", sessionCode: this.session }))
+    }
   }
 
   private stopPing(): void {

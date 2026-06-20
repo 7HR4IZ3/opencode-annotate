@@ -1,10 +1,37 @@
 {
   "name": "@opencode-annotate/plugin",
   "version": "0.1.0",
+  "description": "OpenCode plugin for receiving browser UI annotations over WebSocket.",
   "type": "module",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "license": "MIT",
+  "keywords": [
+    "opencode",
+    "plugin",
+    "annotation",
+    "websocket",
+    "ui-feedback"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "bun build src/index.ts --outdir dist --target bun --format esm",
+    "build": "bun run build:module && bun run build:types",
+    "build:module": "bun build src/index.ts --outfile dist/index.js --target bun --format esm --packages external",
+    "build:types": "bunx tsc --emitDeclarationOnly --declaration",
+    "prepack": "bun run build",
+    "pack:dry-run": "bun pm pack --dry-run",
     "dev": "bun --watch src/index.ts"
   },
   "dependencies": {

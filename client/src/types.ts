@@ -1,4 +1,3 @@
-// WebSocket message types
 export interface WelcomeMessage {
   type: "welcome"
   sessionCode: string
@@ -23,7 +22,7 @@ export interface AnnotateMessage {
     }
   }
   annotation: string
-  screenshot: string | null // base64 or null if capture failed
+  screenshot: string | null
 }
 
 export interface AnnotateBatchMessage {
@@ -63,16 +62,3 @@ export interface PongMessage {
 
 export type ClientMessage = AnnotateMessage | AnnotateBatchMessage | PingMessage
 export type ServerMessage = WelcomeMessage | AckMessage | ErrorMessage | PongMessage
-
-// Session types
-export interface Session {
-  code: string
-  clients: Set<any> // WebSocket type
-  createdAt: Date
-}
-
-// Plugin context
-export interface AnnotatePluginContext {
-  port: number
-  sessions: Map<string, Session>
-}

@@ -5,41 +5,404 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Annotate Test</title>
         <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
             body {
-                font-family: system-ui;
+                font-family:
+                    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                    sans-serif;
                 padding: 40px;
+                background: #fafafa;
+                color: #18181b;
+                max-width: 800px;
+                margin: 0 auto;
+            }
+            h1 {
+                font-size: 20px;
+                font-weight: 600;
+                margin-bottom: 24px;
+                color: #09090b;
+                text-align: center;
             }
             .card {
-                border: 1px solid #ccc;
-                padding: 20px;
-                border-radius: 8px;
-                margin-bottom: 20px;
+                background: #fff;
+                border: 1px solid #e4e4e7;
+                border-radius: 6px;
+                padding: 24px;
+                margin-bottom: 16px;
             }
-            button {
-                padding: 10px 20px;
-                background: #3b82f6;
-                color: white;
-                border: none;
+            .card-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin-bottom: 12px;
+            }
+            .card h2 {
+                font-size: 14px;
+                font-weight: 600;
+                color: #09090b;
+            }
+            .card-tag {
+                font-size: 11px;
+                font-weight: 500;
+                color: #71717a;
+                background: #f4f4f5;
+                border: 1px solid #e4e4e7;
+                padding: 2px 8px;
+                border-radius: 4px;
+            }
+            .card p {
+                font-size: 13px;
+                line-height: 1.5;
+                color: #71717a;
+                margin-bottom: 16px;
+            }
+            .card-footer {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding-top: 16px;
+                border-top: 1px solid #f4f4f5;
+            }
+            .btn {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 6px 12px;
+                font-size: 13px;
+                font-weight: 500;
                 border-radius: 4px;
                 cursor: pointer;
+                border: 1px solid transparent;
+                font-family: inherit;
+                transition:
+                    background 120ms,
+                    border-color 120ms;
             }
-            button:hover {
+            .btn-primary {
                 background: #2563eb;
+                color: #fff;
+                border-color: #2563eb;
+            }
+            .btn-primary:hover {
+                background: #1d4ed8;
+            }
+            .btn-ghost {
+                background: transparent;
+                color: #71717a;
+                border-color: transparent;
+            }
+            .btn-ghost:hover {
+                background: #f4f4f5;
+                color: #18181b;
+            }
+            .counter {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 12px 16px;
+                border: 1px solid #e4e4e7;
+                border-radius: 6px;
+                background: #fff;
+            }
+            .counter-value {
+                font-size: 24px;
+                font-weight: 600;
+                min-width: 48px;
+                text-align: center;
+                font-variant-numeric: tabular-nums;
+                color: #09090b;
+            }
+            .counter button {
+                width: 36px;
+                height: 36px;
+                padding: 0;
+                font-size: 16px;
+                border-radius: 6px;
+                background: #f4f4f5;
+                color: #3f3f46;
+                border: 1px solid #e4e4e7;
+                cursor: pointer;
+                font-family: inherit;
+                transition: background 120ms;
+            }
+            .counter button:hover {
+                background: #e4e4e7;
+            }
+            /* Todo List */
+            .todo-list {
+                background: #fff;
+                border: 1px solid #e4e4e7;
+                border-radius: 6px;
+                margin-top: 16px;
+                overflow: hidden;
+            }
+            .todo-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 16px 20px;
+                border-bottom: 1px solid #f4f4f5;
+            }
+            .todo-header-left {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            .todo-header h2 {
+                font-size: 14px;
+                font-weight: 600;
+                color: #09090b;
+            }
+            .todo-count {
+                font-size: 11px;
+                font-weight: 500;
+                color: #71717a;
+                background: #f4f4f5;
+                border: 1px solid #e4e4e7;
+                padding: 2px 8px;
+                border-radius: 4px;
+                min-width: 24px;
+                text-align: center;
+            }
+            .todo-input-area {
+                padding: 16px 20px;
+                border-bottom: 1px solid #f4f4f5;
+                background: #fafafa;
+            }
+            .todo-input-row {
+                display: flex;
+                gap: 8px;
+            }
+            .todo-input {
+                flex: 1;
+                padding: 10px 14px;
+                font-size: 13px;
+                font-family: inherit;
+                border: 1px solid #e4e4e7;
+                border-radius: 4px;
+                background: #fff;
+                color: #18181b;
+                outline: none;
+                transition: border-color 120ms, box-shadow 120ms;
+            }
+            .todo-input:focus {
+                border-color: #2563eb;
+                box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+            }
+            .todo-input::placeholder {
+                color: #a1a1aa;
+            }
+            .todo-items {
+                list-style: none;
+                padding: 8px 0;
+            }
+            .todo-item {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 10px 20px;
+                transition: background 80ms;
+            }
+            .todo-item:hover {
+                background: #fafafa;
+            }
+            .todo-checkbox {
+                width: 16px;
+                height: 16px;
+                border: 1.5px solid #d4d4d8;
+                border-radius: 4px;
+                cursor: pointer;
+                accent-color: #2563eb;
+                transition: border-color 120ms, background 120ms;
+            }
+            .todo-checkbox:hover {
+                border-color: #2563eb;
+            }
+            .todo-text {
+                flex: 1;
+                font-size: 13px;
+                color: #18181b;
+                line-height: 1.4;
+            }
+            .todo-item.completed .todo-text {
+                text-decoration: line-through;
+                color: #a1a1aa;
+            }
+            .todo-item.completed {
+                opacity: 0.6;
+            }
+            .todo-delete {
+                width: 28px;
+                height: 28px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border: none;
+                border-radius: 4px;
+                background: transparent;
+                color: #d4d4d8;
+                cursor: pointer;
+                font-size: 16px;
+                opacity: 0;
+                transition: opacity 120ms, background 120ms, color 120ms;
+            }
+            .todo-item:hover .todo-delete {
+                opacity: 1;
+            }
+            .todo-delete:hover {
+                background: rgba(239, 68, 68, 0.08);
+                color: #ef4444;
+            }
+            .todo-empty {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 8px;
+                padding: 32px 20px;
+                color: #a1a1aa;
+            }
+            .todo-empty-icon {
+                width: 32px;
+                height: 32px;
+                color: #d4d4d8;
+            }
+            .todo-empty-text {
+                font-size: 13px;
             }
         </style>
     </head>
     <body>
-        <h1>Annotate Plugin Test</h1>
+        <h1>Annotate Plugin</h1>
         <div class="card">
-            <h2>Sample Card</h2>
+            <div class="card-header">
+                <h2>Sample Card</h2>
+                <span class="card-tag">Test</span>
+            </div>
             <p>This is a test card. Click on any element to annotate it.</p>
-            <button>Click Me</button>
+            <div class="card-footer">
+                <button class="btn btn-primary">Click me</button>
+                <button class="btn btn-ghost">Cancel</button>
+            </div>
         </div>
-        <!--<script src="client/dist/index.js" data-session="TEST_SESSION" data-server="ws://localhost:10300"></script>-->
+        <div class="counter">
+            <button id="decrement">-</button>
+            <div class="counter-value" id="count">0</div>
+            <button id="increment">+</button>
+        </div>
+        <div class="todo-list">
+            <div class="todo-header">
+                <div class="todo-header-left">
+                    <h2>Todo List</h2>
+                    <span class="todo-count" id="todo-count">0</span>
+                </div>
+            </div>
+            <div class="todo-input-area">
+                <div class="todo-input-row">
+                    <input
+                        type="text"
+                        id="todo-input"
+                        class="todo-input"
+                        placeholder="Add a new task..."
+                    />
+                    <button class="btn btn-primary" id="add-todo">Add</button>
+                </div>
+            </div>
+            <ul class="todo-items" id="todo-items"></ul>
+        </div>
+        <script>
+            const countEl = document.getElementById("count");
+            let count = 0;
+
+            document
+                .getElementById("increment")
+                .addEventListener("click", () => {
+                    count++;
+                    countEl.textContent = count;
+                });
+
+            document
+                .getElementById("decrement")
+                .addEventListener("click", () => {
+                    count--;
+                    countEl.textContent = count;
+                });
+
+            // Todo List
+            const todoInput = document.getElementById("todo-input");
+            const todoItems = document.getElementById("todo-items");
+            const todoCount = document.getElementById("todo-count");
+            const addTodoBtn = document.getElementById("add-todo");
+            let todos = [];
+
+            function renderTodos() {
+                todoCount.textContent = todos.length;
+                if (todos.length === 0) {
+                    todoItems.innerHTML = `
+                        <li class="todo-empty">
+                            <svg class="todo-empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                            </svg>
+                            <span class="todo-empty-text">No tasks yet</span>
+                        </li>`;
+                    return;
+                }
+                todoItems.innerHTML = todos
+                    .map(
+                        (todo, index) => `
+                        <li class="todo-item ${todo.completed ? "completed" : ""}">
+                            <input
+                                type="checkbox"
+                                class="todo-checkbox"
+                                ${todo.completed ? "checked" : ""}
+                                onchange="toggleTodo(${index})"
+                            />
+                            <span class="todo-text">${escapeHtml(todo.text)}</span>
+                            <button class="todo-delete" onclick="deleteTodo(${index})">×</button>
+                        </li>
+                    `
+                    )
+                    .join("");
+            }
+
+            function escapeHtml(text) {
+                const div = document.createElement("div");
+                div.textContent = text;
+                return div.innerHTML;
+            }
+
+            function addTodo() {
+                const text = todoInput.value.trim();
+                if (!text) return;
+                todos.push({ text, completed: false });
+                todoInput.value = "";
+                renderTodos();
+            }
+
+            function toggleTodo(index) {
+                todos[index].completed = !todos[index].completed;
+                renderTodos();
+            }
+
+            function deleteTodo(index) {
+                todos.splice(index, 1);
+                renderTodos();
+            }
+
+            addTodoBtn.addEventListener("click", addTodo);
+            todoInput.addEventListener("keydown", (e) => {
+                if (e.key === "Enter") addTodo();
+            });
+
+            renderTodos();
+        </script>
         <script
-            src="client/dist/index.js"
-            data-session="ann_LL1LQd"
-            data-server="ws://localhost:10300"
+            src="client/dist/annotate.global.js"
+            data-session="test"
+            data-screenshots="true"
         ></script>
     </body>
 </html>

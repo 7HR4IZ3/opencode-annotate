@@ -1,6 +1,6 @@
 import html2canvas from "html2canvas"
 
-export async function captureElement(element: Element): Promise<string | null> {
+export async function captureElement(element: HTMLElement): Promise<string | null> {
   try {
     const canvas = await html2canvas(element, {
       backgroundColor: null, // Transparent background

@@ -1,10 +1,44 @@
 {
   "name": "@opencode-annotate/client",
   "version": "0.1.0",
+  "description": "Browser client for selecting UI elements and sending annotations to OpenCode.",
   "type": "module",
   "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "browser": "dist/index.js",
+  "unpkg": "dist/annotate.global.js",
+  "jsdelivr": "dist/annotate.global.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./global": "./dist/annotate.global.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "license": "MIT",
+  "keywords": [
+    "opencode",
+    "annotation",
+    "browser",
+    "ui-feedback",
+    "websocket"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "bun build src/index.ts --outdir dist --target browser --format iife",
+    "build": "bun run build:module && bun run build:global && bun run build:types",
+    "build:module": "bun build src/index.ts --outfile dist/index.js --target browser --format esm --packages external",
+    "build:global": "bun build src/global.ts --outfile dist/annotate.global.js --target browser --format iife",
+    "build:types": "bunx tsc --emitDeclarationOnly --declaration",
+    "prepack": "bun run build",
+    "pack:dry-run": "bun pm pack --dry-run",
     "dev": "bun --watch src/index.ts"
   },
   "dependencies": {

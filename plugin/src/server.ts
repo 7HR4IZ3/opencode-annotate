@@ -1,5 +1,4 @@
 import { WebSocketServer, WebSocket } from "ws"
-import type { ClientMessage, ServerMessage, Session } from "@opencode-annotate/shared/types"
 import { getSession, deleteSession } from "./session"
 
 const PORT_RANGE = { min: 10300, max: 10399 }
@@ -15,7 +14,7 @@ export interface AnnotateServer {
 }
 
 export async function createAnnotateServer(
-  onAnnotation: (session: Session, message: ClientMessage) => Promise<void>,
+  onAnnotation: (session: any, message: any) => Promise<void>,
   logger: Logger
 ): Promise<AnnotateServer> {
   let port = PORT_RANGE.min
@@ -56,18 +55,41 @@ export async function createAnnotateServer(
     }, CONNECTION_TIMEOUT_MS)
 
     ws.on("message", async (data: Buffer) => {
+      const raw = data.toString()
+      await logger.log({
+        level: "info",
+        message: `[annotate] Raw WS message (${raw.length} bytes): ${raw.substring(0, 500)}`,
+      })
+
       try {
-        const message: ClientMessage = JSON.parse(data.toString())
+        const message = JSON.parse(raw)
+
+        await logger.log({
+          level: "info",
+          message: `[annotate] Parsed message: type=${message.type}, sessionCode=${message.sessionCode}`,
+        })
 
         if (message.type === "ping") {
+          if (message.sessionCode && !sessionCode) {
+            const session = getSession(message.sessionCode)
+            if (session) {
+              sessionCode = message.sessionCode
+              session.clients.add(ws)
+              clearTimeout(timeout)
+            }
+          }
           ws.send(JSON.stringify({ type: "pong" }))
           return
         }
 
-        if (message.type === "annotate") {
+        if (message.type === "annotate" || message.type === "annotate_batch") {
           const session = getSession(message.sessionCode)
           if (!session) {
-            const error: ServerMessage = {
+            await logger.log({
+              level: "error",
+              message: `[annotate] Session not found: ${message.sessionCode}`,
+            })
+            const error = {
               type: "error",
               code: "INVALID_SESSION",
               message: `Session ${message.sessionCode} not found. Run /annotate to create a new session.`,
@@ -81,23 +103,48 @@ export async function createAnnotateServer(
           session.clients.add(ws)
           clearTimeout(timeout)
 
-          // Process annotation
-          await onAnnotation(session, message)
+          await logger.log({
+            level: "info",
+            message: `[annotate] Processing annotation for session ${session.code}...`,
+          })
+
+          try {
+            await onAnnotation(session, message)
+          } catch (e) {
+            await logger.log({
+              level: "error",
+              message: `[annotate] Error processing annotation: ${e}`,
+            })
+
+            ws.send(JSON.stringify({
+              type: "error",
+              code: "ANNOTATION_FAILED",
+              message: "Failed to send annotation to the active opencode session. Your annotations were kept in the browser for retry.",
+            }))
+            return
+          }
 
           // Send ack
-          const ack: ServerMessage = {
+          const ack = {
             type: "ack",
-            messageId: `msg_${Date.now()}`,
+            messageId: message.clientMessageId || `msg_${Date.now()}`,
           }
           ws.send(JSON.stringify(ack))
+          return
         }
+
+        ws.send(JSON.stringify({
+          type: "error",
+          code: "UNKNOWN_MESSAGE_TYPE",
+          message: `Unknown message type: ${message.type}`,
+        }))
       } catch (e) {
         await logger.log({
           level: "error",
           message: `[annotate] Error processing message: ${e}`,
         })
 
-        const error: ServerMessage = {
+        const error = {
           type: "error",
           code: "PARSE_ERROR",
           message: "Invalid message format. Expected JSON with type field.",
@@ -129,7 +176,7 @@ export async function createAnnotateServer(
     port,
     close: () =>
       new Promise((resolve) => {
-        wss?.close(resolve)
+        wss?.close(() => resolve())
       }),
   }
 }

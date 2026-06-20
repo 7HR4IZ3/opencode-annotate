@@ -5,6 +5,30 @@ export interface AnnotatedElement {
   rect: DOMRect
 }
 
+const TEXT_EXCLUDED_TAGS = new Set([
+  "SCRIPT",
+  "STYLE",
+  "NOSCRIPT",
+  "TEMPLATE",
+  "HEAD",
+  "META",
+  "LINK",
+  "TITLE",
+  "SVG",
+  "PATH",
+  "DEFS",
+])
+
+export function getAnnotatableElementText(element: Element): string {
+  if (shouldExcludeElementText(element)) return ""
+  if (!(element instanceof HTMLElement)) return ""
+  return element.innerText.replace(/\s+/g, " ").trim()
+}
+
+function shouldExcludeElementText(element: Element): boolean {
+  return TEXT_EXCLUDED_TAGS.has(element.tagName)
+}
+
 export class Annotator {
   private highlight: HTMLElement | null = null
   private currentElement: Element | null = null
@@ -12,6 +36,8 @@ export class Annotator {
   private onKeyDown: (e: KeyboardEvent) => void
   private onMouseMove: (e: MouseEvent) => void
   private onClick: (e: MouseEvent) => void
+  private _started = false
+  private _mode: "queue" | "steer" = "queue"
 
   constructor(onSelect: (element: AnnotatedElement) => void) {
     this.onSelect = onSelect
@@ -20,7 +46,17 @@ export class Annotator {
     this.onClick = this.handleClick.bind(this)
   }
 
+  get isStarted(): boolean {
+    return this._started
+  }
+
+  setMode(mode: "queue" | "steer"): void {
+    this._mode = mode
+  }
+
   start(): void {
+    if (this._started) return
+    this._started = true
     document.addEventListener("keydown", this.onKeyDown)
     document.addEventListener("mousemove", this.onMouseMove)
     document.addEventListener("click", this.onClick, true)
@@ -28,6 +64,8 @@ export class Annotator {
   }
 
   stop(): void {
+    if (!this._started) return
+    this._started = false
     document.removeEventListener("keydown", this.onKeyDown)
     document.removeEventListener("mousemove", this.onMouseMove)
     document.removeEventListener("click", this.onClick, true)
@@ -50,25 +88,50 @@ export class Annotator {
   }
 
   private handleClick(e: MouseEvent): void {
-    e.preventDefault()
-    e.stopPropagation()
-
+    // Don't intercept clicks on our own UI
     const target = e.target as Element
     if (!target) return
+    if (
+      target.closest("[data-annotate-toolbar]") ||
+      target.closest("[data-annotate-orb]") ||
+      target.closest("[data-annotate-popup]") ||
+      target.closest("[data-annotate-badge]")
+    ) {
+      return
+    }
+
+    e.preventDefault()
+    e.stopPropagation()
 
     const annotated: AnnotatedElement = {
       element: target,
       selector: this.getSelector(target),
-      text: target.textContent?.trim() || "",
+      text: getAnnotatableElementText(target),
       rect: target.getBoundingClientRect(),
     }
 
-    this.stop()
+    // In steer mode, stop after selection. In queue mode, keep going.
+    if (this._mode === "steer") {
+      this.stop()
+    } else {
+      this.removeHighlight()
+    }
+
     this.onSelect(annotated)
   }
 
   private showHighlight(element: Element): void {
     this.removeHighlight()
+
+    // Skip our own UI
+    if (
+      element.closest("[data-annotate-toolbar]") ||
+      element.closest("[data-annotate-orb]") ||
+      element.closest("[data-annotate-popup]") ||
+      element.closest("[data-annotate-badge]")
+    ) {
+      return
+    }
 
     const rect = element.getBoundingClientRect()
     this.highlight = document.createElement("div")
@@ -79,10 +142,6 @@ export class Annotator {
       top: `${rect.top}px`,
       width: `${rect.width}px`,
       height: `${rect.height}px`,
-      border: "2px solid #3b82f6",
-      backgroundColor: "rgba(59, 130, 246, 0.1)",
-      pointerEvents: "none",
-      zIndex: "2147483647",
     })
     document.body.appendChild(this.highlight)
   }
@@ -116,10 +175,21 @@ export class Annotator {
         }
       }
 
+      // Add classes if present
+      if (current.classList.length > 0) {
+        const classes = Array.from(current.classList)
+          .filter((c) => !c.startsWith("ac-") && !c.startsWith("data-annotate"))
+          .slice(0, 2)
+          .map((c) => `.${c}`)
+          .join("")
+        if (classes) selector += classes
+      }
+
       parts.unshift(selector)
       current = current.parentElement
     }
 
     return parts.join(" > ")
   }
+
 }
