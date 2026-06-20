@@ -43,14 +43,18 @@ async function handleElementSelect(element: AnnotatedElement): Promise<void> {
     return
   }
 
+  console.log("[annotate] Element selected:", element.selector)
+
   // Capture screenshot
   const screenshot = await captureElement(element.element)
+  console.log("[annotate] Screenshot captured, showing popup")
 
   // Show popup
   showAnnotationPopup({
     element,
     screenshot,
     onSubmit: (annotation: string) => {
+      console.log("[annotate] Submit clicked, sending annotation")
       wsClient!.send({
         type: "annotate",
         sessionCode: wsClient!.session,
@@ -71,6 +75,7 @@ async function handleElementSelect(element: AnnotatedElement): Promise<void> {
         annotation,
         screenshot,
       })
+      console.log("[annotate] Message sent to server")
 
       // Restart annotator after a tick to avoid capturing the submit click
       setTimeout(() => annotator?.start(), 100)
