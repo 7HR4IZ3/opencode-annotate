@@ -3,6 +3,42 @@ import { tool } from "@opencode-ai/plugin/tool"
 import { createAnnotateServer, type AnnotateServer, type Logger } from "./server"
 import { generateSessionCode, createSession } from "./session"
 import type { ClientMessage, Session } from "@opencode-annotate/shared/types"
+import { mkdirSync, existsSync, copyFileSync } from "fs"
+import { join, dirname } from "path"
+import { fileURLToPath } from "url"
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+
+const ANNOTATE_COMMAND = `---
+description: Start an annotation session for UI element annotations
+---
+
+Create a new annotation session using the \`annotate_create_session\` tool.
+
+After creating the session, provide the user with:
+1. The session code
+2. The WebSocket URL (ws://localhost:10300)
+3. Instructions to add the script tag to their HTML page
+4. Instructions to initialize the client manually
+
+Format the output as a clear guide with code examples.
+`
+
+async function installCommand(client: any) {
+  try {
+    const paths = await client.path.get()
+    const configDir = paths.data?.config
+    if (!configDir) return
+
+    const commandDir = join(configDir, "command")
+    mkdirSync(commandDir, { recursive: true })
+
+    const destFile = join(commandDir, "annotate.md")
+    if (!existsSync(destFile)) {
+      Bun.write(destFile, ANNOTATE_COMMAND)
+    }
+  } catch {}
+}
 
 export const AnnotatePlugin: Plugin = async (ctx) => {
   const { client } = ctx
@@ -11,6 +47,8 @@ export const AnnotatePlugin: Plugin = async (ctx) => {
     level: "info",
     message: "[annotate] Plugin initializing...",
   })
+
+  installCommand(client)
 
   let server: AnnotateServer | null = null
 

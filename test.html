@@ -1,23 +1,45 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Annotate Test</title>
-  <style>
-    body { font-family: system-ui; padding: 40px; }
-    .card { border: 1px solid #ccc; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
-    button { padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; }
-    button:hover { background: #2563eb; }
-  </style>
-</head>
-<body>
-  <h1>Annotate Plugin Test</h1>
-  <div class="card">
-    <h2>Sample Card</h2>
-    <p>This is a test card. Click on any element to annotate it.</p>
-    <button>Click Me</button>
-  </div>
-  <script src="client/dist/index.js" data-session="TEST_SESSION" data-server="ws://localhost:10300"></script>
-</body>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Annotate Test</title>
+        <style>
+            body {
+                font-family: system-ui;
+                padding: 40px;
+            }
+            .card {
+                border: 1px solid #ccc;
+                padding: 20px;
+                border-radius: 8px;
+                margin-bottom: 20px;
+            }
+            button {
+                padding: 10px 20px;
+                background: #3b82f6;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+            }
+            button:hover {
+                background: #2563eb;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Annotate Plugin Test</h1>
+        <div class="card">
+            <h2>Sample Card</h2>
+            <p>This is a test card. Click on any element to annotate it.</p>
+            <button>Click Me</button>
+        </div>
+        <!--<script src="client/dist/index.js" data-session="TEST_SESSION" data-server="ws://localhost:10300"></script>-->
+        <script
+            src="client/dist/index.js"
+            data-session="ann_HWHDVS"
+            data-server="ws://localhost:10300"
+        ></script>
+    </body>
 </html>
