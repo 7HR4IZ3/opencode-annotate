@@ -91,8 +91,8 @@ async function handleElementSelect(element: AnnotatedElement): Promise<void> {
 if (typeof document !== "undefined") {
   const script = document.querySelector("script[data-session]")
   if (script) {
-    const session = script.getAttribute("data-session")
-    const server = script.getAttribute("data-server")
+    const session = script.getAttribute("data-session")?.trim()
+    const server = script.getAttribute("data-server")?.trim()
     if (session) {
       init({
         session,
