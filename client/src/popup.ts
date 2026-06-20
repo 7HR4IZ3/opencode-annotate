@@ -6,13 +6,19 @@ export interface AnnotationPopupOptions {
   onAdd: (annotation: string) => void
   onCancel: () => void
   existingAnnotation?: string
+  mode: "queue" | "steer"
+  onModeChange: (mode: "queue" | "steer") => void
+  debug?: boolean
 }
 
-const ICON_SLIDERS = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="14" y2="6"/><line x1="18" y1="6" x2="20" y2="6"/><circle cx="16" cy="6" r="2"/><line x1="4" y1="18" x2="6" y2="18"/><line x1="10" y1="18" x2="20" y2="18"/><circle cx="8" cy="18" r="2"/><line x1="4" y1="12" x2="10" y2="12"/><line x1="14" y1="12" x2="20" y2="12"/><circle cx="12" cy="12" r="2"/></svg>`
-const ICON_MIC = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></svg>`
+const ICON_SEND = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>`
+const ICON_X = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>`
+const ICON_BULLSEYE = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>`
+const ICON_LIST = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>`
 
 export function showAnnotationPopup(options: AnnotationPopupOptions): void {
-  const { element, onAdd, onCancel, existingAnnotation } = options
+  const { element, onAdd, onCancel, existingAnnotation, onModeChange } = options
+  let currentMode = options.mode
 
   document.querySelectorAll("[data-annotate-popup]").forEach((p) => p.remove())
 
@@ -22,23 +28,24 @@ export function showAnnotationPopup(options: AnnotationPopupOptions): void {
   const value = existingAnnotation ? escapeHtml(existingAnnotation) : ""
 
   popup.innerHTML = `
+    <button class="ac-popup-icon-btn ac-popup-cancel" type="button" data-action="cancel" title="Cancel annotation" aria-label="Cancel annotation">${ICON_X}</button>
     <textarea
       class="ac-popup-textarea"
       rows="1"
       placeholder="${existingAnnotation ? "Update comment..." : "Add a comment..."}"
       aria-label="Annotation comment"
     >${value}</textarea>
-    <button class="ac-popup-icon-btn ac-popup-leading" type="button" data-action="focus" title="Annotation options" aria-label="Annotation options">${ICON_SLIDERS}</button>
-    <button class="ac-popup-icon-btn ac-popup-submit" type="button" data-action="add" title="${existingAnnotation ? "Update annotation" : "Add annotation"}" aria-label="${existingAnnotation ? "Update annotation" : "Add annotation"}">${ICON_MIC}</button>
+    <button class="ac-popup-icon-btn ac-popup-leading" type="button" data-action="mode" title="" aria-label=""></button>
+    <button class="ac-popup-icon-btn ac-popup-submit" type="button" data-action="add" title="${existingAnnotation ? "Update annotation" : "Add annotation"}" aria-label="${existingAnnotation ? "Update annotation" : "Add annotation"}">${ICON_SEND}</button>
   `
 
   document.body.appendChild(popup)
 
   const elemRect = element.rect
-  const popupWidth = 296
+  const popupWidth = 336
   const popupHeight = 44
 
-  let left = elemRect.right - 84
+  let left = elemRect.right - 124
   let top = elemRect.top + elemRect.height / 2 - popupHeight / 2
 
   const vw = window.innerWidth
@@ -53,6 +60,9 @@ export function showAnnotationPopup(options: AnnotationPopupOptions): void {
   popup.style.top = `${top}px`
 
   const textarea = popup.querySelector(".ac-popup-textarea") as HTMLTextAreaElement
+  const modeButton = popup.querySelector("[data-action='mode']") as HTMLButtonElement
+
+  updateModeButton()
   textarea.focus()
   if (existingAnnotation) textarea.select()
 
@@ -73,6 +83,21 @@ export function showAnnotationPopup(options: AnnotationPopupOptions): void {
     document.removeEventListener("keydown", handleEscape)
     document.removeEventListener("mousedown", handleMouseDown)
     onCancel()
+  }
+
+  function updateModeButton() {
+    const label = currentMode === "queue" ? "Queue mode" : "Steer mode"
+    modeButton.innerHTML = currentMode === "queue" ? ICON_LIST : ICON_BULLSEYE
+    modeButton.title = currentMode === "queue" ? "Queue annotations" : "Send immediately"
+    modeButton.setAttribute("aria-label", `${label}. Click to switch mode.`)
+    modeButton.classList.toggle("ac-popup-mode-steer", currentMode === "steer")
+  }
+
+  function toggleMode() {
+    currentMode = currentMode === "queue" ? "steer" : "queue"
+    onModeChange(currentMode)
+    updateModeButton()
+    textarea.focus()
   }
 
   function handleEscape(e: KeyboardEvent) {
@@ -99,8 +124,10 @@ export function showAnnotationPopup(options: AnnotationPopupOptions): void {
       const action = (btn as HTMLElement).dataset.action
       if (action === "add") {
         submit()
-      } else if (action === "focus") {
-        textarea.focus()
+      } else if (action === "cancel") {
+        close()
+      } else if (action === "mode") {
+        toggleMode()
       }
     })
   })

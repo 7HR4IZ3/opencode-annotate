@@ -4,7 +4,7 @@ export interface WSClientOptions {
   session: string
   server: string
   onConnect?: () => void
-  onDisconnect?: () => void
+  onDisconnect?: (event: CloseEvent) => void
   onError?: (error: Event) => void
   onAck?: (messageId: string) => void
   onServerError?: (message: string) => void
@@ -17,6 +17,8 @@ export class WSClient {
   private maxRetries = 3
   private retryDelays = [0, 1000, 2000]
   private pingInterval: ReturnType<typeof setInterval> | null = null
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private shouldReconnect = true
   public session: string
 
   constructor(options: WSClientOptions) {
@@ -29,18 +31,18 @@ export class WSClient {
   }
 
   connect(): void {
+    this.shouldReconnect = true
     this.ws = new WebSocket(this.options.server)
 
     this.ws.onopen = () => {
-      this.retryCount = 0
       this.sendPing()
       this.options.onConnect?.()
       this.startPing()
     }
 
-    this.ws.onclose = () => {
+    this.ws.onclose = (event) => {
       this.stopPing()
-      this.options.onDisconnect?.()
+      this.options.onDisconnect?.(event)
       this.attemptReconnect()
     }
 
@@ -70,13 +72,14 @@ export class WSClient {
   }
 
   private attemptReconnect(): void {
-    if (this.retryCount >= this.maxRetries) {
+    if (!this.shouldReconnect || this.retryCount >= this.maxRetries) {
       return
     }
 
     const delay = this.retryDelays[this.retryCount]
 
-    setTimeout(() => {
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null
       this.retryCount++
       this.connect()
     }, delay)
@@ -91,8 +94,19 @@ export class WSClient {
   }
 
   disconnect(): void {
+    this.shouldReconnect = false
     this.stopPing()
-    this.ws?.close()
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
+    if (this.ws) {
+      this.ws.onopen = null
+      this.ws.onclose = null
+      this.ws.onerror = null
+      this.ws.onmessage = null
+      this.ws.close()
+    }
     this.ws = null
   }
 

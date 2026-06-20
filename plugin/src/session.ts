@@ -22,6 +22,10 @@ export function getSession(code: string): Session | undefined {
   return sessions.get(code)
 }
 
+export function getOrCreateSession(code: string): Session {
+  return getSession(code) ?? createSession(code)
+}
+
 export function deleteSession(code: string): void {
   sessions.delete(code)
 }

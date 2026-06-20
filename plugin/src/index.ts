@@ -58,7 +58,8 @@ description: Start an annotation session for UI element annotations
 2. If no code is provided, call \`annotate_create_session\` without arguments (generates random code)
 3. After creating the session, provide the user with:
    - The session code
-   - Instructions to add the script tag to their HTML page (server defaults to \`ws://localhost:10300\` — no need to specify \`data-server\`)
+   - The WebSocket URL returned by the tool
+   - Instructions to add the script tag to their HTML page with \`data-server\` set to that WebSocket URL
    - Instructions to initialize the client manually
 
 ## Example Output Format
@@ -72,12 +73,13 @@ description: Start an annotation session for UI element annotations
 
 Add this script tag to your HTML page:
 
-<script src="path/to/annotate.js" data-session="mycode"></script>
+<script src="path/to/annotate.js" data-session="mycode" data-server="ws://localhost:10300"></script>
 
 Or initialize manually:
 
 AnnotateClient.init({
   session: "mycode",
+  server: "ws://localhost:10300",
 })
 \`\`\`
 `
@@ -320,7 +322,7 @@ export const AnnotatePlugin: Plugin = async (ctx) => {
               `Add this script tag to your HTML page:`,
               ``,
               "```html",
-              `<script src="path/to/annotate.js" data-session="${code}"></script>`,
+              `<script src="path/to/annotate.js" data-session="${code}" data-server="ws://localhost:${server.port}"></script>`,
               "```",
               ``,
               `Or initialize manually:`,
@@ -328,7 +330,7 @@ export const AnnotatePlugin: Plugin = async (ctx) => {
               "```javascript",
               `AnnotateClient.init({`,
               `  session: "${code}",`,
-              `  // server defaults to ws://localhost:10300`,
+              `  server: "ws://localhost:${server.port}",`,
               `})`,
               "```",
             ].join("\n")

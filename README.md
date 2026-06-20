@@ -30,6 +30,8 @@ The `shared` workspace contains internal protocol types for repo development. It
 
 Screenshots are captured in the browser with `html2canvas`. The plugin saves received screenshots under the OS temp directory, then references them in the OpenCode prompt with `file://` image links.
 
+The plugin binds to the first available port in `10300-10399`. If `10300` is already used by another OpenCode process, use the exact `data-server` URL returned by `/annotate`.
+
 ## Development Install
 
 Install workspace dependencies from the repo root:
@@ -104,10 +106,11 @@ When installed from npm, use the package browser bundle:
   data-session="YOUR_SESSION_CODE"
   data-server="ws://localhost:10300"
   data-screenshots="true"
+  data-debug="false"
 ></script>
 ```
 
-`data-server` is optional when the plugin is listening on `ws://localhost:10300`. In script-tag auto-initialization, set `data-screenshots="true"` to enable screenshot capture.
+`data-server` is optional only when the plugin is listening on `ws://localhost:10300`. In script-tag auto-initialization, set `data-screenshots="true"` to enable screenshot capture, `data-debug="true"` to enable browser console diagnostics, and `data-hotkeys="false"` to disable global hotkeys.
 
 For bundled apps, import the published ESM entry:
 
@@ -118,6 +121,8 @@ init({
   session: "YOUR_SESSION_CODE",
   server: "ws://localhost:10300",
   captureScreenshots: true,
+  debug: false,
+  hotkeys: true,
 })
 ```
 
@@ -127,8 +132,11 @@ The global browser bundle also exposes `window.AnnotateClient` for manual initia
 
 - Open the annotation toolbar by clicking the floating orb.
 - Enable element selection from the toolbar, or double-click the orb.
+- Toggle annotation mode with `Cmd+Shift+A` on macOS or `Ctrl+Shift+A` on Windows/Linux.
 - Hover the page to highlight elements, then click an element to annotate it.
+- Drag a box over the page to select elements fully contained inside the box. The selected elements stay highlighted while the popup is open.
 - Press `Enter` in the popup to add the annotation. Press `Shift+Enter` for a newline.
+- Use the popup `x` button or `Escape` to cancel the annotation.
 - Use `Queue` mode to collect multiple annotations and send them together.
 - Use `Steer` mode to send each annotation immediately.
 - Queued annotations are stored in `sessionStorage` per session and page path so they can be restored after disconnects or reloads.
@@ -164,7 +172,7 @@ bun run pack:dry-run
 To try the browser UI locally, build the client and open `test.html` in a browser. The fixture currently uses:
 
 ```html
-<script src="client/dist/annotate.global.js" data-session="test" data-screenshots="true"></script>
+<script src="client/dist/annotate.global.js" data-session="test" data-screenshots="true" data-debug="true"></script>
 ```
 
 Create a matching session in OpenCode with `/annotate test`.

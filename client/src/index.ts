@@ -1,15 +1,18 @@
 import { WSClient, type WSClientOptions } from "./ws-client"
 import { Annotator, getAnnotatableElementText, type AnnotatedElement } from "./annotator"
-import { captureElement } from "./capture"
+import { captureArea, captureElement } from "./capture"
 import { showAnnotationPopup } from "./popup"
 import { injectStyles } from "./styles"
 import { createToolbar, type ToolbarHandle } from "./toolbar"
 import { BadgeManager, type QueueItem } from "./badges"
+import { debugError, debugLog, debugWarn, setDebugEnabled } from "./logger"
 
 export interface AnnotateClientOptions {
   session: string
   server?: string
   captureScreenshots?: boolean // default true, set false to skip base64 images
+  debug?: boolean
+  hotkeys?: boolean
 }
 
 let wsClient: WSClient | null = null
@@ -20,6 +23,9 @@ let enabled = false
 let mode: "queue" | "steer" = "queue"
 let queue: QueueItem[] = []
 let captureScreenshots = true
+let debug = false
+let hotkeys = true
+let hotkeyListenerRegistered = false
 let annotationCacheKey = ""
 let pendingAnnotationCacheKey = ""
 let modeCacheKey = ""
@@ -39,13 +45,20 @@ const PENDING_ANNOTATION_CACHE_PREFIX = "opencode-annotate:pending-annotations:"
 const MODE_CACHE_PREFIX = "opencode-annotate:mode:"
 
 export function init(options: AnnotateClientOptions): void {
+  teardown()
+
   const {
     session,
     server = "ws://localhost:10300",
     captureScreenshots: shouldCapture = true,
+    debug: shouldDebug = false,
+    hotkeys: shouldEnableHotkeys = true,
   } = options
 
   captureScreenshots = shouldCapture
+  debug = shouldDebug
+  hotkeys = shouldEnableHotkeys
+  setDebugEnabled(debug)
   const cacheScope = getPageCacheScope()
   annotationCacheKey = `${ANNOTATION_CACHE_PREFIX}${session}:${cacheScope}`
   pendingAnnotationCacheKey = `${PENDING_ANNOTATION_CACHE_PREFIX}${session}:${cacheScope}`
@@ -53,8 +66,8 @@ export function init(options: AnnotateClientOptions): void {
   mode = loadCachedMode()
   saveCachedMode()
 
-  console.log(`[annotate] Initializing with session: ${session}, server: ${server}`)
-  console.log(`[annotate] Storage scope: ${cacheScope}, mode: ${mode}`)
+  debugLog(`[annotate] Initializing with session: ${session}, server: ${server}`)
+  debugLog(`[annotate] Storage scope: ${cacheScope}, mode: ${mode}`)
 
   injectStyles()
 
@@ -64,14 +77,15 @@ export function init(options: AnnotateClientOptions): void {
     session,
     server,
     onConnect: () => {
-      console.log("[annotate] Connected to server")
+      debugLog("[annotate] Connected to server")
     },
-    onDisconnect: () => {
-      console.log("[annotate] Disconnected from server")
+    onDisconnect: (event) => {
+      const reason = event.reason ? `, reason: ${event.reason}` : ""
+      debugLog(`[annotate] Disconnected from server (code: ${event.code}${reason})`)
       restorePendingAnnotations()
     },
     onAck: (messageId) => {
-      console.log(`[annotate] Ack received: ${messageId}`)
+      debugLog(`[annotate] Ack received: ${messageId}`)
       if (pendingMessageId && messageId === pendingMessageId) {
         pendingMessageId = null
         clearPendingSendTimer()
@@ -79,7 +93,7 @@ export function init(options: AnnotateClientOptions): void {
       }
     },
     onServerError: (message) => {
-      console.error(`[annotate] Server error: ${message}`)
+      debugError(`[annotate] Server error: ${message}`)
       restorePendingAnnotations()
     },
   })
@@ -108,16 +122,42 @@ export function init(options: AnnotateClientOptions): void {
 
   document.body.appendChild(toolbar.element)
   toolbar.updateMode(mode)
+  if (hotkeys && !hotkeyListenerRegistered) {
+    document.addEventListener("keydown", handleGlobalKeyDown)
+    hotkeyListenerRegistered = true
+  } else if (!hotkeys && hotkeyListenerRegistered) {
+    document.removeEventListener("keydown", handleGlobalKeyDown)
+    hotkeyListenerRegistered = false
+  }
   restorePendingAnnotations()
   restoreCachedAnnotations()
 
-  console.log("[annotate] Ready. Click toolbar toggle to enable.")
+  debugLog("[annotate] Ready. Click toolbar toggle to enable.")
+}
+
+export function teardown(): void {
+  clearPendingSendTimer()
+  wsClient?.disconnect()
+  wsClient = null
+  annotator?.stop()
+  annotator = null
+  toolbar?.element.remove()
+  toolbar = null
+  badgeManager?.removeAll()
+  badgeManager = null
+  document.querySelectorAll("[data-annotate-popup]").forEach((popup) => popup.remove())
+  if (hotkeyListenerRegistered) {
+    document.removeEventListener("keydown", handleGlobalKeyDown)
+    hotkeyListenerRegistered = false
+  }
+  enabled = false
+  queue = []
 }
 
 function handleToggle(isEnabled: boolean): void {
   enabled = isEnabled
   toolbar?.updateEnabled(enabled)
-  console.log(`[annotate] Annotator ${enabled ? "enabled" : "disabled"}`)
+  debugLog(`[annotate] Annotator ${enabled ? "enabled" : "disabled"}`)
   if (enabled) {
     annotator?.start()
     badgeManager?.show()
@@ -131,27 +171,33 @@ function handleModeChange(newMode: "queue" | "steer"): void {
   mode = newMode
   annotator?.setMode(mode)
   saveCachedMode()
-  console.log(`[annotate] Mode changed to: ${mode}`)
+  debugLog(`[annotate] Mode changed to: ${mode}`)
 }
 
 async function handleElementSelect(element: AnnotatedElement): Promise<void> {
   if (!wsClient || !enabled) return
 
-  console.log(`[annotate] Element selected: ${element.selector}`)
+  debugLog(`[annotate] Element selected: ${element.selector}`)
 
   // Capture screenshot (if enabled)
   let screenshot: string | null = null
-  if (captureScreenshots && element.element instanceof HTMLElement) {
+  if (captureScreenshots && element.selector.startsWith("area selection")) {
+    screenshot = await captureArea(element.rect)
+    debugLog(`[annotate] Area screenshot captured: ${screenshot ? "yes" : "no"}`)
+  } else if (captureScreenshots && element.element instanceof HTMLElement) {
     screenshot = await captureElement(element.element)
-    console.log(`[annotate] Screenshot captured: ${screenshot ? "yes" : "no"}`)
+    debugLog(`[annotate] Screenshot captured: ${screenshot ? "yes" : "no"}`)
   }
 
   // Show popup near the element
   showAnnotationPopup({
     element,
     screenshot,
+    mode,
+    onModeChange: handleModeChange,
+    debug,
     onAdd: (annotation: string) => {
-      console.log(`[annotate] Add clicked, mode: ${mode}`)
+      debugLog(`[annotate] Add clicked, mode: ${mode}`)
       if (mode === "queue") {
         // Add to queue
         addQueueItem(element, screenshot, annotation)
@@ -188,12 +234,12 @@ function addQueueItem(
   }
 
   queue.push(item)
-  console.log(`[annotate] Added to queue (${queue.length} total): ${element.selector}`)
+  debugLog(`[annotate] Added to queue (${queue.length} total): ${element.selector}`)
 
   // Add badge to element
   if (badgeManager) {
     item.badge = badgeManager.addBadge(
-      element.element,
+      element,
       id,
       queue.length - 1,
       () => handleEditItem(item)
@@ -233,6 +279,9 @@ function handleEditItem(item: QueueItem): void {
     element: item.element,
     screenshot: item.screenshot,
     existingAnnotation: item.annotation,
+    mode,
+    onModeChange: handleModeChange,
+    debug,
     onAdd: (annotation: string) => {
       item.annotation = annotation
       updateToolbar()
@@ -251,25 +300,25 @@ function handleEditItem(item: QueueItem): void {
 
 function handleSendAll(): void {
   if (queue.length === 0) {
-    console.log("[annotate] Queue empty, nothing to send")
+    debugLog("[annotate] Queue empty, nothing to send")
     return
   }
 
-  console.log(`[annotate] Sending all ${queue.length} annotations...`)
+  debugLog(`[annotate] Sending all ${queue.length} annotations...`)
 
   const messageId = `batch_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
   savePendingAnnotations(messageId, queue)
 
   const sent = sendAnnotationBatch(messageId, queue)
   if (!sent) {
-    console.error("[annotate] Cannot send queue: not connected to server")
+    debugError("[annotate] Cannot send queue: not connected to server")
     restorePendingAnnotations()
     return
   }
 
   pendingMessageId = messageId
   pendingSendTimer = window.setTimeout(() => {
-    console.warn("[annotate] Batch send timed out; restoring annotations for retry")
+    debugWarn("[annotate] Batch send timed out; restoring annotations for retry")
     restorePendingAnnotations()
   }, 10000)
   badgeManager?.removeAll()
@@ -279,7 +328,7 @@ function handleSendAll(): void {
 }
 
 function handleClear(): void {
-  console.log("[annotate] Queue cleared")
+  debugLog("[annotate] Queue cleared")
   badgeManager?.removeAll()
   queue = []
   pendingMessageId = null
@@ -300,7 +349,7 @@ function restoreCachedAnnotations(): void {
     if (!Array.isArray(parsed)) return
     cached = parsed.filter(isCachedAnnotation)
   } catch (error) {
-    console.warn("[annotate] Failed to restore cached annotations", error)
+    debugWarn("[annotate] Failed to restore cached annotations", error)
     return
   }
 
@@ -316,7 +365,7 @@ function restoreCachedAnnotations(): void {
   }
 
   if (cached.length > 0) {
-    console.log(`[annotate] Restored ${queue.length} cached annotations`)
+    debugLog(`[annotate] Restored ${queue.length} cached annotations`)
   }
 }
 
@@ -332,9 +381,9 @@ function saveCachedAnnotations(): void {
 
   try {
     sessionStorage.setItem(annotationCacheKey, JSON.stringify(cached))
-    console.log(`[annotate] Cached ${cached.length} annotations`)
+    debugLog(`[annotate] Cached ${cached.length} annotations`)
   } catch (error) {
-    console.warn("[annotate] Failed to cache annotations", error)
+    debugWarn("[annotate] Failed to cache annotations", error)
   }
 }
 
@@ -344,7 +393,7 @@ function clearCachedAnnotations(): void {
   try {
     sessionStorage.removeItem(annotationCacheKey)
   } catch (error) {
-    console.warn("[annotate] Failed to clear cached annotations", error)
+    debugWarn("[annotate] Failed to clear cached annotations", error)
   }
 }
 
@@ -360,7 +409,7 @@ function savePendingAnnotations(messageId: string, items: QueueItem[]): void {
       })
     )
   } catch (error) {
-    console.warn("[annotate] Failed to store pending annotations", error)
+    debugWarn("[annotate] Failed to store pending annotations", error)
   }
 }
 
@@ -383,7 +432,7 @@ function restorePendingAnnotations(): void {
     }
     updateToolbar()
   } catch (error) {
-    console.warn("[annotate] Failed to restore pending annotations", error)
+    debugWarn("[annotate] Failed to restore pending annotations", error)
   }
 }
 
@@ -399,7 +448,7 @@ function clearPendingAnnotations(): void {
   try {
     sessionStorage.removeItem(pendingAnnotationCacheKey)
   } catch (error) {
-    console.warn("[annotate] Failed to clear pending annotations", error)
+    debugWarn("[annotate] Failed to clear pending annotations", error)
   }
 }
 
@@ -420,7 +469,7 @@ function saveCachedMode(): void {
   try {
     sessionStorage.setItem(modeCacheKey, mode)
   } catch (error) {
-    console.warn("[annotate] Failed to cache annotation mode", error)
+    debugWarn("[annotate] Failed to cache annotation mode", error)
   }
 }
 
@@ -481,7 +530,7 @@ function restoreCachedItems(items: CachedAnnotation[]): void {
     queue.push(queueItem)
     if (badgeManager) {
       queueItem.badge = badgeManager.addBadge(
-        element,
+        queueItem.element,
         queueItem.id,
         queue.length - 1,
         () => handleEditItem(queueItem)
@@ -496,19 +545,21 @@ function sendAnnotation(
   annotation: string
 ): void {
   if (!wsClient) {
-    console.error("[annotate] Cannot send: no wsClient")
+    debugError("[annotate] Cannot send: no wsClient")
     return
   }
 
   if (!wsClient.connected) {
-    console.error("[annotate] Cannot send: not connected to server")
+    debugError("[annotate] Cannot send: not connected to server")
     return
   }
 
-  console.log(`[annotate] Sending annotation: ${element.selector}`)
+  const messageId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+  debugLog(`[annotate] Sending annotation: ${element.selector}`)
 
   wsClient.send({
     type: "annotate",
+    clientMessageId: messageId,
     sessionCode: wsClient.session,
     page: {
       url: window.location.href,
@@ -528,21 +579,21 @@ function sendAnnotation(
     screenshot,
   })
 
-  console.log("[annotate] Message sent")
+  debugLog(`[annotate] Annotation written to WebSocket: ${messageId}`)
 }
 
 function sendAnnotationBatch(messageId: string, items: QueueItem[]): boolean {
   if (!wsClient) {
-    console.error("[annotate] Cannot send: no wsClient")
+    debugError("[annotate] Cannot send: no wsClient")
     return false
   }
 
   if (!wsClient.connected) {
-    console.error("[annotate] Cannot send: not connected to server")
+    debugError("[annotate] Cannot send: not connected to server")
     return false
   }
 
-  console.log(`[annotate] Sending annotation batch: ${items.length}`)
+  debugLog(`[annotate] Sending annotation batch: ${items.length}`)
 
   const sent = wsClient.send({
     type: "annotate_batch",
@@ -568,8 +619,29 @@ function sendAnnotationBatch(messageId: string, items: QueueItem[]): boolean {
     })),
   })
 
-  if (sent) console.log("[annotate] Batch message sent")
+  if (sent) debugLog("[annotate] Batch message sent")
   return sent
+}
+
+function handleGlobalKeyDown(event: KeyboardEvent): void {
+  if (isTypingTarget(event.target)) return
+  if (!(event.shiftKey && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "a")) {
+    return
+  }
+
+  event.preventDefault()
+  handleToggle(!enabled)
+}
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  return Boolean(
+    target.closest("[data-annotate-popup]") ||
+      target.isContentEditable ||
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLSelectElement
+  )
 }
 
 function updateToolbar(): void {
@@ -594,11 +666,15 @@ if (typeof document !== "undefined") {
     const session = script.getAttribute("data-session")?.trim()
     const server = script.getAttribute("data-server")?.trim()
     const screenshots = script.getAttribute("data-screenshots")?.trim()
+    const debugAttr = script.getAttribute("data-debug")?.trim()
+    const hotkeysAttr = script.getAttribute("data-hotkeys")?.trim()
     if (session) {
       init({
         session,
         server: server || undefined,
         captureScreenshots: screenshots === "true",
+        debug: debugAttr === "true",
+        hotkeys: hotkeysAttr !== "false",
       })
     }
   }

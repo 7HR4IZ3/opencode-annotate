@@ -1,5 +1,5 @@
 import { WebSocketServer, WebSocket } from "ws"
-import { getSession, deleteSession } from "./session"
+import { getAllSessions, getOrCreateSession, getSession } from "./session"
 
 const PORT_RANGE = { min: 10300, max: 10399 }
 const CONNECTION_TIMEOUT_MS = 30000 // 30 seconds
@@ -71,31 +71,37 @@ export async function createAnnotateServer(
 
         if (message.type === "ping") {
           if (message.sessionCode && !sessionCode) {
-            const session = getSession(message.sessionCode)
-            if (session) {
-              sessionCode = message.sessionCode
-              session.clients.add(ws)
-              clearTimeout(timeout)
-            }
+            const session = getOrCreateSession(message.sessionCode)
+            sessionCode = message.sessionCode
+            session.clients.add(ws)
+            clearTimeout(timeout)
           }
           ws.send(JSON.stringify({ type: "pong" }))
           return
         }
 
         if (message.type === "annotate" || message.type === "annotate_batch") {
-          const session = getSession(message.sessionCode)
-          if (!session) {
+          if (!message.sessionCode || typeof message.sessionCode !== "string") {
             await logger.log({
               level: "error",
-              message: `[annotate] Session not found: ${message.sessionCode}`,
+              message: `[annotate] Missing session code. Active sessions: ${listSessionCodes()}`,
             })
             const error = {
               type: "error",
               code: "INVALID_SESSION",
-              message: `Session ${message.sessionCode} not found. Run /annotate to create a new session.`,
+              message: "Missing annotation session code. Set data-session or pass session to AnnotateClient.init().",
             }
             ws.send(JSON.stringify(error))
             return
+          }
+
+          const existingSession = getSession(message.sessionCode)
+          const session = existingSession ?? getOrCreateSession(message.sessionCode)
+          if (!existingSession) {
+            await logger.log({
+              level: "warn",
+              message: `[annotate] Auto-created browser session ${message.sessionCode}. Active sessions: ${listSessionCodes()}`,
+            })
           }
 
           // Store session code for this connection
@@ -158,15 +164,6 @@ export async function createAnnotateServer(
         const session = getSession(sessionCode)
         if (session) {
           session.clients.delete(ws)
-          if (session.clients.size === 0) {
-            // Keep session alive for reconnections
-            setTimeout(() => {
-              const s = getSession(sessionCode!)
-              if (s && s.clients.size === 0) {
-                deleteSession(sessionCode!)
-              }
-            }, 30000) // 30s grace period
-          }
         }
       }
     })
@@ -179,4 +176,9 @@ export async function createAnnotateServer(
         wss?.close(() => resolve())
       }),
   }
+}
+
+function listSessionCodes(): string {
+  const codes = Array.from(getAllSessions().keys())
+  return codes.length > 0 ? codes.join(", ") : "(none)"
 }

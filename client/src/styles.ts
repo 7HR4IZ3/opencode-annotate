@@ -34,11 +34,27 @@ const STYLES = `
     border-radius: 2px;
   }
 
+  [data-annotate-drag-box] {
+    position: fixed;
+    pointer-events: none;
+    z-index: 2147483646;
+    border: 1px solid var(--ac-accent);
+    background: rgba(59, 130, 246, 0.08);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.35);
+  }
+
+  [data-annotate-selected-highlight] {
+    position: fixed;
+    pointer-events: none;
+    z-index: 2147483645;
+    border: 1px solid var(--ac-accent);
+    background: rgba(59, 130, 246, 0.05);
+    border-radius: 2px;
+  }
+
   /* Badge */
   [data-annotate-badge] {
-    position: absolute;
-    top: -6px;
-    right: -6px;
+    position: fixed;
     width: 20px;
     height: 20px;
     border-radius: 50%;
@@ -52,12 +68,13 @@ const STYLES = `
     cursor: pointer;
     z-index: 2147483646;
     box-shadow: 0 0 0 2px white;
-    transition: transform var(--ac-transition), background var(--ac-transition);
+    transform: translate(35%, -35%);
+    transition: background var(--ac-transition), scale var(--ac-transition);
     user-select: none;
   }
 
   [data-annotate-badge]:hover {
-    transform: scale(1.15);
+    scale: 1.15;
     background: var(--ac-accent-hover);
   }
 
@@ -77,7 +94,7 @@ const STYLES = `
     border-radius: 22px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.18);
     padding: 0 10px;
-    width: 296px;
+    width: 336px;
     height: 44px;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     font-size: 13px;
@@ -112,8 +129,29 @@ const STYLES = `
     color: #d4d4d4;
   }
 
+  [data-annotate-popup] .ac-popup-cancel {
+    width: 20px;
+    flex-basis: 20px;
+  }
+
+  [data-annotate-popup] .ac-popup-icon-btn:disabled {
+    color: #5f5f5f;
+    cursor: not-allowed;
+  }
+
+  [data-annotate-popup] .ac-popup-icon-btn:disabled:hover {
+    background: transparent;
+    color: #5f5f5f;
+  }
+
+  [data-annotate-popup] .ac-popup-mode-steer {
+    color: #d4d4d4;
+    background: #363636;
+  }
+
   [data-annotate-popup] .ac-popup-submit {
     margin-left: auto;
+    color: #d4d4d4;
   }
 
   [data-annotate-popup] .ac-popup-textarea {
