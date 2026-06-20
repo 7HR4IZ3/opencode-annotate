@@ -61,6 +61,11 @@ export const AnnotatePlugin: Plugin = async (ctx) => {
   try {
     server = await createAnnotateServer(
       async (session: Session, message: ClientMessage) => {
+        await client.app.log({
+          level: "info",
+          message: `[annotate] Received annotation for session ${session.code}`,
+        })
+
         if (message.type === "annotate") {
           const context = [
             `## UI Annotation`,
@@ -86,6 +91,11 @@ export const AnnotatePlugin: Plugin = async (ctx) => {
           context.push(`Please review this UI annotation and help resolve it.`)
 
           try {
+            await client.app.log({
+              level: "info",
+              message: `[annotate] Sending to session prompt...`,
+            })
+
             await client.session.prompt({
               messages: [
                 {
@@ -97,7 +107,7 @@ export const AnnotatePlugin: Plugin = async (ctx) => {
 
             await client.app.log({
               level: "info",
-              message: `[annotate] Annotation sent to session ${session.code}`,
+              message: `[annotate] Annotation sent successfully`,
             })
           } catch (error) {
             await client.app.log({
