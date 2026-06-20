@@ -14,6 +14,7 @@ export class WSClient {
   private retryCount = 0
   private maxRetries = 3
   private retryDelays = [0, 1000, 2000]
+  private pingInterval: ReturnType<typeof setInterval> | null = null
   public session: string
 
   constructor(options: WSClientOptions) {
@@ -28,10 +29,12 @@ export class WSClient {
       console.log("[annotate] Connected to server")
       this.retryCount = 0
       this.options.onConnect?.()
+      this.startPing()
     }
 
     this.ws.onclose = () => {
       console.log("[annotate] Disconnected from server")
+      this.stopPing()
       this.options.onDisconnect?.()
       this.attemptReconnect()
     }
@@ -88,7 +91,24 @@ export class WSClient {
   }
 
   disconnect(): void {
+    this.stopPing()
     this.ws?.close()
     this.ws = null
+  }
+
+  private startPing(): void {
+    this.stopPing()
+    this.pingInterval = setInterval(() => {
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: "ping" }))
+      }
+    }, 15000) // Ping every 15 seconds
+  }
+
+  private stopPing(): void {
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval)
+      this.pingInterval = null
+    }
   }
 }

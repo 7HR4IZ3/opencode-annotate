@@ -72,8 +72,8 @@ async function handleElementSelect(element: AnnotatedElement): Promise<void> {
         screenshot,
       })
 
-      // Restart annotator
-      annotator?.start()
+      // Restart annotator after a tick to avoid capturing the submit click
+      setTimeout(() => annotator?.start(), 100)
     },
     onCancel: () => {
       // Restart annotator

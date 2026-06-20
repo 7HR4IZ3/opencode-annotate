@@ -48,6 +48,9 @@ export async function createAnnotateServer(
   wss.on("connection", (ws: WebSocket) => {
     let sessionCode: string | null = null
 
+    // Send welcome
+    ws.send(JSON.stringify({ type: "welcome" }))
+
     // Set connection timeout
     const timeout = setTimeout(() => {
       if (!sessionCode) {
