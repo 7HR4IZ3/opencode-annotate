@@ -1,0 +1,7 @@
+{
+  "name": "@opencode-annotate/shared",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "types.ts",
+  "types": "types.ts"
+}

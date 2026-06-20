@@ -1,0 +1,5 @@
+{
+  "name": "opencode-annotate-plugin",
+  "private": true,
+  "workspaces": ["plugin", "client", "shared"]
+}

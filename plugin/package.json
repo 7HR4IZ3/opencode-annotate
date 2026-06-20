@@ -1,0 +1,18 @@
+{
+  "name": "@opencode-annotate/plugin",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "bun build src/index.ts --outdir dist --target bun --format esm",
+    "dev": "bun --watch src/index.ts"
+  },
+  "dependencies": {
+    "@opencode-ai/plugin": "latest",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.10",
+    "typescript": "^5.3.3"
+  }
+}
