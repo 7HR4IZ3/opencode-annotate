@@ -1,23 +1,21 @@
 import type { Plugin } from "@opencode-ai/plugin"
-import { createAnnotateServer, type AnnotateServer } from "./server"
-import { createAnnotateCommand } from "./commands"
+import { tool } from "@opencode-ai/plugin/tool"
+import { createAnnotateServer, type AnnotateServer, type Logger } from "./server"
+import { generateSessionCode, createSession } from "./session"
 import type { ClientMessage, Session } from "@opencode-annotate/shared/types"
 
 export const AnnotatePlugin: Plugin = async (ctx) => {
   const { client } = ctx
 
-  // Log plugin initialization
   await client.app.log({
     level: "info",
     message: "[annotate] Plugin initializing...",
   })
 
-  // Start WebSocket server inside plugin scope (not module-level)
   let server: AnnotateServer | null = null
 
-  // Create logger wrapper for server
-  const logger = {
-    log: async (entry: { level: string; message: string }) => {
+  const logger: Logger = {
+    log: async (entry) => {
       await client.app.log(entry)
     },
   }
@@ -26,7 +24,6 @@ export const AnnotatePlugin: Plugin = async (ctx) => {
     server = await createAnnotateServer(
       async (session: Session, message: ClientMessage) => {
         if (message.type === "annotate") {
-          // Build context message for the agent
           const context = [
             `## UI Annotation`,
             ``,
@@ -50,7 +47,6 @@ export const AnnotatePlugin: Plugin = async (ctx) => {
           context.push(`---`)
           context.push(`Please review this UI annotation and help resolve it.`)
 
-          // Send to OpenCode session with error handling
           try {
             await client.session.prompt({
               messages: [
@@ -85,11 +81,49 @@ export const AnnotatePlugin: Plugin = async (ctx) => {
       level: "error",
       message: `[annotate] Failed to start server: ${error}`,
     })
-    throw error // Re-throw to fail plugin initialization
+    throw error
   }
 
   return {
-    ...createAnnotateCommand(server),
+    tool: {
+      annotate_create_session: tool({
+        description:
+          "Create a new annotation session for UI element annotations. Returns a session code and connection details.",
+        args: {},
+        async execute() {
+          try {
+            const code = generateSessionCode()
+            createSession(code)
+
+            return [
+              `## Annotation Session Created`,
+              ``,
+              `**Session Code**: \`${code}\``,
+              `**WebSocket**: \`ws://localhost:${server.port}\``,
+              ``,
+              `### Browser Integration`,
+              ``,
+              `Add this script tag to your HTML page:`,
+              ``,
+              "```html",
+              `<script src="path/to/annotate.js" data-session="${code}" data-server="ws://localhost:${server.port}"></script>`,
+              "```",
+              ``,
+              `Or initialize manually:`,
+              ``,
+              "```javascript",
+              `AnnotateClient.init({`,
+              `  session: "${code}",`,
+              `  server: "ws://localhost:${server.port}"`,
+              `})`,
+              "```",
+            ].join("\n")
+          } catch (error) {
+            return `Failed to create annotation session: ${error}`
+          }
+        },
+      }),
+    },
   }
 }
 
