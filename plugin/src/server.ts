@@ -3,6 +3,11 @@ import type { ClientMessage, ServerMessage, Session } from "@opencode-annotate/s
 import { getSession, deleteSession } from "./session"
 
 const PORT_RANGE = { min: 10300, max: 10399 }
+const CONNECTION_TIMEOUT_MS = 30000 // 30 seconds
+
+export interface Logger {
+  log: (entry: { level: string; message: string }) => Promise<void>
+}
 
 export interface AnnotateServer {
   port: number
@@ -10,7 +15,8 @@ export interface AnnotateServer {
 }
 
 export async function createAnnotateServer(
-  onAnnotation: (session: Session, message: ClientMessage) => Promise<void>
+  onAnnotation: (session: Session, message: ClientMessage) => Promise<void>,
+  logger: Logger
 ): Promise<AnnotateServer> {
   let port = PORT_RANGE.min
   let wss: WebSocketServer | null = null
@@ -34,10 +40,20 @@ export async function createAnnotateServer(
     throw new Error(`No available port in range ${PORT_RANGE.min}-${PORT_RANGE.max}`)
   }
 
-  console.log(`[annotate] WebSocket server listening on port ${port}`)
+  await logger.log({
+    level: "info",
+    message: `[annotate] WebSocket server listening on port ${port}`,
+  })
 
   wss.on("connection", (ws: WebSocket) => {
     let sessionCode: string | null = null
+
+    // Set connection timeout
+    const timeout = setTimeout(() => {
+      if (!sessionCode) {
+        ws.close(1000, "Connection timeout - no session assigned")
+      }
+    }, CONNECTION_TIMEOUT_MS)
 
     ws.on("message", async (data: Buffer) => {
       try {
@@ -54,7 +70,7 @@ export async function createAnnotateServer(
             const error: ServerMessage = {
               type: "error",
               code: "INVALID_SESSION",
-              message: `Session ${message.sessionCode} not found`,
+              message: `Session ${message.sessionCode} not found. Run /annotate to create a new session.`,
             }
             ws.send(JSON.stringify(error))
             return
@@ -63,6 +79,7 @@ export async function createAnnotateServer(
           // Store session code for this connection
           sessionCode = message.sessionCode
           session.clients.add(ws)
+          clearTimeout(timeout)
 
           // Process annotation
           await onAnnotation(session, message)
@@ -75,10 +92,15 @@ export async function createAnnotateServer(
           ws.send(JSON.stringify(ack))
         }
       } catch (e) {
+        await logger.log({
+          level: "error",
+          message: `[annotate] Error processing message: ${e}`,
+        })
+
         const error: ServerMessage = {
           type: "error",
           code: "PARSE_ERROR",
-          message: "Invalid message format",
+          message: "Invalid message format. Expected JSON with type field.",
         }
         ws.send(JSON.stringify(error))
       }
